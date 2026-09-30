@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Para Beibi 💫</title>
+<style>
+  :root{
+    --txt-glow: 0 0 10px rgba(0,0,0,.9), 0 0 20px rgba(0,0,0,.7), 0 2px 4px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    width:100%; height:100%;
+    background:#000;
+    overflow:hidden;
+    font-family: 'Georgia', 'Segoe UI', serif;
+  }
+  #stage{
+    position:relative;
+    width:100vw; height:100vh;
+  }
+  .scene{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0;
+    z-index:1;
+    transition: opacity 1.4s ease;
+  }
+  .scene.active{ opacity:1; z-index:2; }
+  .scene img{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    filter:brightness(0.9);
+  }
+  .caption{
+    position:relative;
+    z-index:5;
+    color:#fff8dc;
+    text-shadow: var(--txt-glow);
+    font-size:clamp(1.6rem, 5vw, 3rem);
+    text-align:center;
+    padding:0 8%;
+    letter-spacing:0.5px;
+    animation: fadeInText 1.8s ease;
+  }
+  @keyframes fadeInText{
+    from{opacity:0; transform:translateY(12px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  #scene-final{
+    background: radial-gradient(circle at center, #1a1240 0%, #05030f 100%);
+  }
+  #scene-final .caption{
+    color:#ffe6f0;
+  }
+  #restart-btn{
+    margin-top:2rem;
+    padding:0.9rem 2.2rem;
+    font-size:1.1rem;
+    border:none;
+    border-radius:40px;
+    background:linear-gradient(135deg,#ff6fa5,#ffd36e);
+    color:#2b0a1f;
+    font-weight:bold;
+    cursor:pointer;
+    box-shadow:0 4px 18px rgba(255,111,165,.6);
+    opacity:0;
+    animation: fadeInBtn 1.5s ease 0.8s forwards;
+    transition: transform .2s ease;
+  }
+  #restart-btn:hover{ transform:scale(1.06); }
+  @keyframes fadeInBtn{
+    from{opacity:0; transform:translateY(10px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  #final-inner{
+    display:flex; flex-direction:column; align-items:center;
+  }
+  #sparkle-overlay, #bubble-overlay, #heart-overlay{
+    position:absolute; inset:0;
+    z-index:10;
+    pointer-events:none;
+    opacity:0;
+  }
+  .sparkle{
+    position:absolute;
+    border-radius:50%;
+    filter: blur(0.3px);
+    box-shadow:0 0 12px 4px currentColor;
+  }
+  @keyframes sparklePop{
+    0%{ transform:scale(0); opacity:0; }
+    35%{ opacity:1; }
+    100%{ transform:scale(1); opacity:0; }
+  }
+  .bubble{
+    position:absolute;
+    bottom:-10%;
+    border-radius:50%;
+    opacity:0;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.85), currentColor 70%);
+  }
+  @keyframes bubbleRise{
+    0%{ transform:translateY(0) scale(0.3); opacity:0; }
+    15%{ opacity:.9; }
+    100%{ transform:translateY(-115vh) scale(1.15); opacity:0; }
+  }
+  .heart{
+    position:absolute;
+    bottom:-8%;
+    color:#ff2d55;
+    opacity:0;
+    filter: drop-shadow(0 0 6px rgba(255,45,85,.7));
+  }
+  @keyframes heartRise{
+    0%{ transform:translateY(0) scale(0.4) rotate(-8deg); opacity:0; }
+    15%{ opacity:1; }
+    100%{ transform:translateY(-120vh) scale(1.2) rotate(8deg); opacity:0; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+
+  <section class="scene active" id="scene-cielo">
+    <img src="images/cielo.png" alt="Cielo estrellado">
+    <p class="caption">Existen estrellas en el cielo...</p>
+  </section>
+
+  <section class="scene" id="scene-mar">
+    <img src="images/mar.png" alt="Estrella de mar">
+    <p class="caption">...en el mar...</p>
+  </section>
+
+  <section class="scene" id="scene-beibi">
+    <img src="images/beibi.png" alt="Beibi">
+    <p class="caption">...y en la Tierra 😍</p>
+  </section>
+
+  <section class="scene" id="scene-final">
+    <div id="final-inner">
+      <p class="caption">¡Te extraño mucho! 😘</p>
+      <button id="restart-btn">Volver a empezar</button>
+    </div>
+  </section>
+
+  <div id="sparkle-overlay"></div>
+  <div id="bubble-overlay"></div>
+  <div id="heart-overlay"></div>
+</div>
+
+<audio id="bg-audio" src="images/jamas.mp3" preload="auto"></audio>
+
+<script>
+const SCENE_DURATION = 13000; // 13s por escena
+const scenes = ['scene-cielo','scene-mar','scene-beibi','scene-final'];
+const sceneEls = scenes.map(id=>document.getElementById(id));
+const sparkleOverlay = document.getElementById('sparkle-overlay');
+const bubbleOverlay = document.getElementById('bubble-overlay');
+const heartOverlay = document.getElementById('heart-overlay');
+const audio = document.getElementById('bg-audio');
+const restartBtn = document.getElementById('restart-btn');
+
+let timers = [];
+
+function clearTimers(){
+  timers.forEach(t=>clearTimeout(t));
+  timers = [];
+}
+
+function colorPalette(){
+  return ['#ffd36e','#ff6fa5','#6ec6ff','#9dff8f','#ffffff','#ffb84d'];
+}
+
+function launchSparkles(){
+  sparkleOverlay.innerHTML = '';
+  sparkleOverlay.style.opacity = '1';
+  const colors = colorPalette();
+  const count = 55;
+  for(let i=0;i<count;i++){
+    const s = document.createElement('div');
+    s.className = 'sparkle';
+    const size = 6 + Math.random()*22;
+    s.style.width = size+'px';
+    s.style.height = size+'px';
+    s.style.left = (Math.random()*100)+'%';
+    s.style.top = (Math.random()*100)+'%';
+    s.style.color = colors[Math.floor(Math.random()*colors.length)];
+    s.style.background = 'currentColor';
+    const dur = 0.8 + Math.random()*0.9;
+    const delay = Math.random()*0.6;
+    s.style.animation = `sparklePop ${dur}s ease ${delay}s`;
+    sparkleOverlay.appendChild(s);
+  }
+  setTimeout(()=>{ sparkleOverlay.style.opacity='0'; sparkleOverlay.innerHTML=''; }, 1900);
+}
+
+function launchBubbles(){
+  bubbleOverlay.innerHTML = '';
+  bubbleOverlay.style.opacity = '1';
+  const colors = colorPalette();
+  const count = 40;
+  for(let i=0;i<count;i++){
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 18 + Math.random()*70;
+    b.style.width = size+'px';
+    b.style.height = size+'px';
+    b.style.left = (Math.random()*100)+'%';
+    b.style.color = colors[Math.floor(Math.random()*colors.length)];
+    const dur = 1.4 + Math.random()*1.0;
+    const delay = Math.random()*0.5;
+    b.style.animation = `bubbleRise ${dur}s ease-in ${delay}s`;
+    bubbleOverlay.appendChild(b);
+  }
+  setTimeout(()=>{ bubbleOverlay.style.opacity='0'; bubbleOverlay.innerHTML=''; }, 2100);
+}
+
+function launchHearts(){
+  heartOverlay.innerHTML = '';
+  heartOverlay.style.opacity = '1';
+  const count = 36;
+  for(let i=0;i<count;i++){
+    const h = document.createElement('div');
+    h.className = 'heart';
+    h.textContent = '❤';
+    const size = 14 + Math.random()*28;
+    h.style.fontSize = size+'px';
+    h.style.left = (Math.random()*100)+'%';
+    const dur = 1.5 + Math.random()*1.1;
+    const delay = Math.random()*0.5;
+    h.style.animation = `heartRise ${dur}s ease-in ${delay}s`;
+    heartOverlay.appendChild(h);
+  }
+  setTimeout(()=>{ heartOverlay.style.opacity='0'; heartOverlay.innerHTML=''; }, 2200);
+}
+
+function showScene(index){
+  sceneEls.forEach((el,i)=> el.classList.toggle('active', i===index));
+}
+
+function playSequence(){
+  clearTimers();
+  showScene(0);
+
+  timers.push(setTimeout(()=>{ launchSparkles(); }, SCENE_DURATION - 1200));
+  timers.push(setTimeout(()=>{ showScene(1); }, SCENE_DURATION));
+
+  timers.push(setTimeout(()=>{ launchBubbles(); }, SCENE_DURATION*2 - 1200));
+  timers.push(setTimeout(()=>{ showScene(2); }, SCENE_DURATION*2));
+
+  timers.push(setTimeout(()=>{ launchHearts(); }, SCENE_DURATION*3 - 1200));
+  timers.push(setTimeout(()=>{ showScene(3); audio.pause(); }, SCENE_DURATION*3));
+}
+
+function startPresentation(){
+  audio.currentTime = 0;
+  audio.play().catch(()=>{ /* el navegador puede requerir interacción */ });
+  playSequence();
+}
+
+restartBtn.addEventListener('click', ()=>{
+  startPresentation();
+});
+
+window.addEventListener('load', ()=>{
+  startPresentation();
+});
+
+document.body.addEventListener('click', function tryPlayOnce(){
+  if(audio.paused){ audio.play().catch(()=>{}); }
+  document.body.removeEventListener('click', tryPlayOnce);
+}, { once:true });
+</script>
+
+</body>
+</html>

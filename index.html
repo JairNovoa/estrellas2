@@ -27,18 +27,39 @@
   }
   .scene{
     position:absolute; inset:0;
-    display:flex; align-items:center; justify-content:center;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap: clamp(1rem, 3vh, 2.2rem);
+    padding: 4vh 5%;
     opacity:0;
     z-index:1;
     transition: opacity 1.4s ease;
   }
   .scene.active{ opacity:1; z-index:2; }
-  .scene img{
-    position:absolute; inset:0;
-    width:100%; height:100%;
-    object-fit:cover;
-    object-position:center;
-    filter:brightness(0.9);
+  .bg-blur{
+    position:absolute; inset:-5%;
+    background-size:cover;
+    background-position:center;
+    filter: blur(45px) brightness(0.55) saturate(1.1);
+    transform: scale(1.15);
+    z-index:0;
+  }
+  .fg-img{
+    position:relative;
+    z-index:1;
+    max-width:92vw;
+    max-height:62vh;
+    width:auto;
+    height:auto;
+    object-fit:contain;
+    border-radius:14px;
+    box-shadow:0 18px 55px rgba(0,0,0,.55);
+    display:block;
+  }
+  @media (min-width:900px){
+    .fg-img{ max-height:68vh; max-width:70vw; }
+  }
+  @media (orientation:landscape) and (max-height:500px){
+    .fg-img{ max-height:52vh; }
   }
   .caption{
     position:relative;
@@ -47,6 +68,7 @@
     text-shadow: var(--txt-glow);
     font-size:clamp(1.3rem, 4.5vw, 3rem);
     text-align:center;
+    width:100%;
     padding:0 8%;
     max-width: 900px;
     margin: 0 auto;
@@ -61,6 +83,11 @@
   }
   @media (orientation:landscape) and (max-height:500px){
     .caption{ font-size:clamp(1.1rem, 4vw, 2rem); }
+  }
+  .scene > .caption{
+    position:absolute;
+    left:0; right:0;
+    bottom: clamp(1.5rem, 6vh, 4rem);
   }
   @keyframes fadeInText{
     from{opacity:0; transform:translateY(12px);}
@@ -143,17 +170,20 @@
 <div id="stage">
 
   <section class="scene active" id="scene-cielo">
-    <img src="cielo.png" alt="Cielo estrellado">
+    <div class="bg-blur" style="background-image:url('images/cielo.png')"></div>
+    <img class="fg-img" src="cielo.png" alt="Cielo estrellado">
     <p class="caption">Existen estrellas en el cielo...</p>
   </section>
 
   <section class="scene" id="scene-mar">
-    <img src="mar.png" alt="Estrella de mar">
+    <div class="bg-blur" style="background-image:url('images/mar.png')"></div>
+    <img class="fg-img" src="mar.png" alt="Estrella de mar">
     <p class="caption">...en el mar...</p>
   </section>
 
   <section class="scene" id="scene-beibi">
-    <img src="beibi.png" alt="Beibi">
+    <div class="bg-blur" style="background-image:url('images/beibi.png')"></div>
+    <img class="fg-img" src="beibi.png" alt="Beibi">
     <p class="caption">...y en la Tierra 😍</p>
   </section>
 

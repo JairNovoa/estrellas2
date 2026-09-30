@@ -163,6 +163,49 @@
     15%{ opacity:1; }
     100%{ transform:translateY(-120vh) scale(1.2) rotate(8deg); opacity:0; }
   }
+  #start-overlay{
+    position:fixed; inset:0; z-index:50;
+    background: radial-gradient(circle at center, #1a1240 0%, #05030f 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:1.6rem;
+    text-align:center;
+    padding:0 8%;
+  }
+  #start-overlay p{
+    color:#fff8dc;
+    font-size:clamp(1.1rem, 4.5vw, 1.7rem);
+    text-shadow: var(--txt-glow);
+  }
+  #start-btn{
+    padding:0.9rem 2.2rem;
+    font-size:1.1rem;
+    border:none;
+    border-radius:40px;
+    background:linear-gradient(135deg,#ff6fa5,#ffd36e);
+    color:#2b0a1f;
+    font-weight:bold;
+    cursor:pointer;
+    box-shadow:0 4px 18px rgba(255,111,165,.6);
+    transition: transform .2s ease;
+  }
+  #start-btn:hover{ transform:scale(1.06); }
+  #pause-btn{
+    position:fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    right: calc(env(safe-area-inset-right, 0px) + 16px);
+    z-index:40;
+    width:48px; height:48px;
+    border-radius:50%;
+    background:rgba(0,0,0,.45);
+    border:1px solid rgba(255,255,255,.35);
+    color:#fff;
+    font-size:1.3rem;
+    line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    backdrop-filter: blur(4px);
+  }
+  #pause-btn.hidden{ display:none; }
 </style>
 </head>
 <body>
@@ -201,6 +244,13 @@
 
 <audio id="bg-audio" src="jamas.mp3" preload="auto"></audio>
 
+<div id="start-overlay">
+  <p>For you, my love 💌</p>
+  <button id="start-btn">▶ Toca para comenzar</button>
+</div>
+
+<button id="pause-btn" class="hidden" aria-label="Pausar">⏸</button>
+
 <script>
 const SCENE_DURATION = 13000; // 13s por escena
 const scenes = ['scene-cielo','scene-mar','scene-beibi','scene-final'];
@@ -210,13 +260,9 @@ const bubbleOverlay = document.getElementById('bubble-overlay');
 const heartOverlay = document.getElementById('heart-overlay');
 const audio = document.getElementById('bg-audio');
 const restartBtn = document.getElementById('restart-btn');
-
-let timers = [];
-
-function clearTimers(){
-  timers.forEach(t=>clearTimeout(t));
-  timers = [];
-}
+const startOverlay = document.getElementById('start-overlay');
+const startBtn = document.getElementById('start-btn');
+const pauseBtn = document.getElementById('pause-btn');
 
 function colorPalette(){
   return ['#ffd36e','#ff6fa5','#6ec6ff','#9dff8f','#ffffff','#ffb84d'];
@@ -289,56 +335,133 @@ function showScene(index){
   sceneEls.forEach((el,i)=> el.classList.toggle('active', i===index));
 }
 
+let fadeInterval = null;
+
+function clearFade(){
+  if(fadeInterval){ clearInterval(fadeInterval); fadeInterval = null; }
+}
+
 function fadeOutAudio(durationMs){
+  clearFade();
   const steps = 20;
   const stepTime = durationMs/steps;
   const startVol = audio.volume;
   let i = 0;
-  const fade = setInterval(()=>{
+  fadeInterval = setInterval(()=>{
     i++;
     audio.volume = Math.max(0, startVol * (1 - i/steps));
     if(i>=steps){
-      clearInterval(fade);
+      clearFade();
       audio.pause();
       audio.volume = 1;
     }
   }, stepTime);
 }
 
-function playSequence(){
-  clearTimers();
-  showScene(0);
+// --- Motor de reproducción pausable, basado en tiempo transcurrido ---
+const TOTAL_DURATION = SCENE_DURATION*3;
+const events = [
+  { t: SCENE_DURATION - 1200, fired:false, action: launchSparkles },
+  { t: SCENE_DURATION,        fired:false, action: ()=>showScene(1) },
+  { t: SCENE_DURATION*2 - 1200, fired:false, action: launchBubbles },
+  { t: SCENE_DURATION*2,      fired:false, action: ()=>showScene(2) },
+  { t: SCENE_DURATION*3 - 1200, fired:false, action: ()=>{ launchHearts(); fadeOutAudio(1200); } },
+  { t: SCENE_DURATION*3,      fired:false, action: ()=>{ showScene(3); stopClock(); setPauseVisible(false); } },
+];
 
-  timers.push(setTimeout(()=>{ launchSparkles(); }, SCENE_DURATION - 1200));
-  timers.push(setTimeout(()=>{ showScene(1); }, SCENE_DURATION));
+let elapsed = 0;
+let running = false;
+let paused = false;
+let lastTick = 0;
+let clockHandle = null;
 
-  timers.push(setTimeout(()=>{ launchBubbles(); }, SCENE_DURATION*2 - 1200));
-  timers.push(setTimeout(()=>{ showScene(2); }, SCENE_DURATION*2));
+function resetEvents(){
+  events.forEach(e=> e.fired = false);
+}
 
-  timers.push(setTimeout(()=>{ launchHearts(); fadeOutAudio(1200); }, SCENE_DURATION*3 - 1200));
-  timers.push(setTimeout(()=>{ showScene(3); }, SCENE_DURATION*3));
+function setPauseVisible(visible){
+  pauseBtn.classList.toggle('hidden', !visible);
+}
+
+function tick(){
+  if(!running || paused) return;
+  const now = performance.now();
+  elapsed += now - lastTick;
+  lastTick = now;
+  events.forEach(e=>{
+    if(!e.fired && elapsed >= e.t){
+      e.fired = true;
+      e.action();
+    }
+  });
+  if(elapsed < TOTAL_DURATION){
+    clockHandle = requestAnimationFrame(tick);
+  }
+}
+
+function startClock(){
+  running = true;
+  paused = false;
+  lastTick = performance.now();
+  clockHandle = requestAnimationFrame(tick);
+}
+
+function stopClock(){
+  running = false;
+  if(clockHandle) cancelAnimationFrame(clockHandle);
+}
+
+function pauseSequence(){
+  if(!running || paused) return;
+  paused = true;
+  if(clockHandle) cancelAnimationFrame(clockHandle);
+  audio.pause();
+  clearFade();
+  pauseBtn.textContent = '▶';
+  pauseBtn.setAttribute('aria-label','Reanudar');
+}
+
+function resumeSequence(){
+  if(!running || !paused) return;
+  paused = false;
+  lastTick = performance.now();
+  audio.play().catch(()=>{});
+  clockHandle = requestAnimationFrame(tick);
+  pauseBtn.textContent = '⏸';
+  pauseBtn.setAttribute('aria-label','Pausar');
+}
+
+function togglePause(){
+  if(paused) resumeSequence();
+  else pauseSequence();
 }
 
 function startPresentation(){
+  clearFade();
+  stopClock();
+  resetEvents();
+  elapsed = 0;
+  showScene(0);
   audio.pause();
   audio.currentTime = 0;
   audio.volume = 1;
-  audio.play().catch(()=>{ /* el navegador puede requerir interacción */ });
-  playSequence();
+  audio.play().catch(()=>{ /* requiere interacción del usuario */ });
+  pauseBtn.textContent = '⏸';
+  pauseBtn.setAttribute('aria-label','Pausar');
+  setPauseVisible(true);
+  startClock();
 }
+
+startBtn.addEventListener('click', ()=>{
+  startOverlay.style.display = 'none';
+  startPresentation();
+});
 
 restartBtn.addEventListener('click', ()=>{
   startPresentation();
 });
 
-window.addEventListener('load', ()=>{
-  startPresentation();
-});
-
-document.body.addEventListener('click', function tryPlayOnce(){
-  if(audio.paused){ audio.play().catch(()=>{}); }
-  document.body.removeEventListener('click', tryPlayOnce);
-}, { once:true });
+pauseBtn.addEventListener('click', togglePause);
 </script>
 
 </body>
